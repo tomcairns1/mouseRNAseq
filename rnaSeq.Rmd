@@ -1,0 +1,103 @@
+---
+title: 'RNA-seq Analysis'
+author: Tom Cairns
+output: html_document
+---
+
+```{r}
+library(Rsubread)
+```
+
+```{r import-data}
+# Import the data
+fastq.files <- list.files(path = './data', pattern = '.fastq.gz$', 
+                          full.names = T)
+fastq.files
+```
+
+This first section involves finding the sequencing data files for the aligner
+to use.
+
+# Alignment and Counting
+
+## Alignment
+
+```{r build-index}
+# Build the index
+buildindex(basename = 'chr1_mm10', reference = 'data/chr1.fa')
+```
+
+Here we built an index for chromosome 1 using the `buildindex()` function and
+the reference fasta file `chr1.fa`.
+
+```{r align-reads}
+# Align reads to chromosome 1
+align('chr1_mm10', fastq.files)
+```
+
+We aligned the fastq files to the index that we created in the previous step.
+This created 12 BAM files for us to use.
+
+```{r proportion-mapped-reads}
+# Get the list of BAM files
+bam.files <- list.files(path = './data', pattern = '.BAM$', full.names = T)
+bam.files
+
+# Get summary
+props <- propmapped(files = bam.files)
+props
+```
+
+Here we made a summary of the proportion of reads that were mapped to the
+reference genome in each BAM file. 
+
+
+## Quality Control
+
+```{r quality-scores}
+# Get quality scores
+qs <- qualityScores(filename = 'data/SRR1552450.fastq.gz', nreads = 100)
+
+# Explore quality scores
+dim(qs)
+head(qs)
+
+# Visualize quality scores
+boxplot(qs)
+```
+
+In this section we looked at the quality scores for each base from 100 reads
+in one of the fastq files. We then created a boxplot to compare overall 
+distributions.
+
+
+## Counting
+
+```{r count-mapped-reads}
+# Count the mapped reads
+fc <- featureCounts(bam.files, annot.inbuilt = 'mm10')
+
+# Explore feature counts
+names(fc)
+
+# Look at stats
+fc$stat
+
+# Find number of genes
+dim(fc$counts)
+head(fc$counts)
+```
+
+In this section we created feature counts of the mapped reads. There are over
+27,000 genes. 
+
+The majority of reads are not mapped because they are not from chromosome 1.
+
+*Note* for species that are not pre-loaded into featureCounts (this mouse model
+is pre-loaded), you would need to read in a dataframe in GTF format to define
+genes and exons. 
+
+
+# RNA-seq Pre-processing
+
+
