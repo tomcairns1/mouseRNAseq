@@ -100,5 +100,153 @@ genes and exons.
 
 # RNA-seq Pre-processing
 
+```{r}
+library(edgeR)
+library(limma)
+library(Glimma)
+library(gplots)
+library(org.Mm.eg.db)
+library(RColorBrewer)
+```
+
+## Import Data
+
+```{r}
+# Import the sample information data
+sampleinfo <- read.delim('data/SampleInfo.txt')
+sampleinfo
+
+# Import the count data
+seqdata <- read.delim('data/GSE60450_Lactation-GenewiseCounts.txt', 
+                      stringsAsFactors = F)
+
+# Explore the data
+head(seqdata)
+dim(seqdata)
+```
+
+In this section we imported the relevant data.
+
+```{r}
+# Extract the counts data
+countdata <- seqdata[,-c(1,2)]
+
+# Store EntrezGeneId as rownames
+rownames(countdata) <- seqdata[,1]
+
+# Explore the data
+head(countdata)
+
+# Shorten the column names
+colnames(countdata) <- substr(colnames(countdata), 1, 7)
+head(countdata)
+
+# Check that the columns are the same as the SampleName in sampleinfo
+table(colnames(countdata) == sampleinfo$SampleName)
+```
+
+In this section we reformatted the data. We first extracted the count data
+from the seqdata object. We then abbreviated the column names and ensured that
+these names would match with the SampleName from the sampleinfo object.
+
+## Filter to remove lowly expressed genes
+
+```{r}
+# Obtain counts per million
+CPMs <- cpm(countdata)
+head(CPMs)
+
+# Find values greater than 0.5
+thresh <- CPMs > 0.5
+head(thresh)
+
+# Find number of TRUE values in each row
+table(rowSums(thresh))
+
+# Filter to keep genes with at least 2 TRUES
+keep <- rowSums(thresh) >= 2
+
+# Subset rows to keep more highly expressed genes
+counts.keep <- countdata[keep,]
+summary(counts.keep)
+head(counts.keep)
+dim(counts.keep)
+```
+
+A count below 10-15 indicates that a gene is not expressed. This is associated
+with a CPM of 0.5. We use counts-per-million here as a way of standardizing the
+data to ensure we keep the expressed genes.
+
+```{r}
+# Plot the first sample
+plot(CPMs[,1], countdata[,1])
+
+# Limit the x and y axis and include a vertical threshold line
+plot(CPMs[,1], countdata[,1], ylim = c(0, 50), xlim = c(0, 3))
+abline(v = 0.5)
+```
+
+Here we plotted the counts per million and the coundata to see that 0.5 CPM 
+is equivalent to about 10 counts in the countdata object.
+
+## Convert counts to DGEList object
+
+A DGElist object is used to store count data.
+
+```{r}
+# Create DGEList object
+dgeObj <- DGEList(counts.keep)
+dgeObj
+
+# See what's stored in the object
+names(dgeObj)
+
+# Get the library size
+dgeObj$samples
+```
+
+We converted the count data to a DGEList object since can easily be used for
+downstream analysis.
+
+## Quality Control
+
+```{r}
+# Create barplot to see any discrepancies between samples
+barplot(dgeObj$samples$lib.size, names = colnames(dgeObj), las = 2)
+title('Barplot of the library sizes')
+```
+
+```{r}
+# Get log2 counts per million
+logcounts <- cpm(dgeObj, log = T)
+
+# Create boxplot to check distributions
+boxplot(logcounts, xlab = '', ylab = 'Log2 counts per million', las = 2)
+abline(h = median(logcounts), col = 'blue')
+title('Boxplots of logCPMs (unnormalized)')
+```
+
+
+## Multidimensional scaling plots
+
+```{r mds-plot}
+# Set parameters for plots
+par(mfrow = c(1, 2))
+col.cell <- c('purple', 'orange')[sampleinfo$CellType]
+data.frame(sampleinfo$CellType, col.cell)
+
+# Create plot for cell type
+plotMDS(dgeObj, col = col.cell, pch = 16)
+legend('topleft', fill = c('purple', 'orange'), legend = unique(sampleinfo$CellType))
+title('Cell type')
+
+# Crete plot for status
+col.status <- c('blue', 'red', 'dark green')[sampleinfo$Status]
+plotMDS(dgeObj, col = col.status)
+legend('topleft', fill = c('blue', 'red', 'dark green'), 
+       legend = unique(sampleinfo$Status), cex = 0.8)
+```
+
+## Hierarchical clustering with heatmaps
 
 
